@@ -26,6 +26,8 @@ from dschat.utils.utils import print_rank_0, to_device, save_hf_format, set_rand
 from dschat.utils.ds_utils import get_train_ds_config
 from dschat.utils.module.lora import convert_linear_layer_to_lora, convert_lora_to_linear_layer, only_optimize_lora_parameters, make_model_gradient_checkpointing_compatible
 
+# wandb utils 추가
+from wandb_utils import init_wandb, log_metrics_wandb, finish_wandb
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -203,6 +205,16 @@ def parse_args():
     parser.add_argument('--tensorboard_path',
                         type=str,
                         default="step2_tensorboard")
+    
+    ## WandB logging
+    parser.add_argument('--enable_wandb',
+                        action='store_true',
+                        help='Enable W&B logging')  
+    parser.add_argument('--project_name',
+                        type=str,
+                        default="gemma-sft",
+                        help='Name of the W&B project')
+
     ## Tokenizer
     parser.add_argument('--end_of_conversation_token',
                         type=str,
@@ -251,6 +263,13 @@ def main():
     ds_config[
         'train_batch_size'] = args.per_device_train_batch_size * torch.distributed.get_world_size(
         ) * args.gradient_accumulation_steps
+    
+    # Initialize W&B (only on rank 0)
+    if args.enable_wandb and torch.distributed.get_rank() == 0:
+        my_tags = [
+            args.model_name_or_path.split("/")[-1]
+        ]
+        init_wandb(args, ds_config, project_name=args.project_name, group_name="2-RM", tags=my_tags)
 
     # If passed along, set the training seed now.
     set_random_seed(args.seed)
@@ -431,6 +450,16 @@ def main():
                             args.gradient_accumulation_steps == 0)
             total_steps = total_micro_steps // args.gradient_accumulation_steps
 
+            if args.enable_wandb:
+                log_metrics_wandb(
+                    mode="train",
+                    step_type="rm",
+                    total_steps=total_steps, # x축은 업데이트 횟수
+                    global_rank=args.global_rank,
+                    metrics={"loss": loss, "lr": rm_model.get_lr()[0]},
+                    epoch= epoch+1
+                )
+
             if args.eval_interval and gas_boundary and (
                     total_steps % args.eval_interval == 0):
                 print_rank_0(f"Iter {total_steps}: Evaluating reward",
@@ -442,9 +471,25 @@ def main():
                     f"diff: {reward_score - reject_score}, acc: {acc}",
                     args.global_rank)
                 rm_model.train()
+
+                if args.enable_wandb:
+                    log_metrics_wandb(
+                        mode="eval",
+                        step_type="rm",
+                        total_steps=total_steps, # x축은 업데이트 횟수
+                        global_rank=args.global_rank,
+                        metrics={
+                            "chosen_score": reward_score,
+                            "reject_score": reject_score,
+                            "diff": reward_score - reject_score,
+                            "acc": acc
+                        },
+                        epoch= epoch+1
+                    )
+
                 if args.output_dir is not None:
                     save_model(total_micro_steps, args, tokenizer, rm_model)
-            
+  
 
         print_rank_0(
             f"Epoch {epoch+1}/{args.num_train_epochs} with loss {mean_loss/(step+1)}",
@@ -462,6 +507,10 @@ def main():
         rm_model.tput_timer.update_epoch_count()
         if args.output_dir is not None:
             save_model(total_micro_steps, args, tokenizer, rm_model)
+ 
+    # Finish wandb session (only on rank 0)
+    if args.enable_wandb:
+        finish_wandb(args.global_rank)
 
     if args.output_dir is not None:
         save_model(total_micro_steps, args, tokenizer, rm_model)

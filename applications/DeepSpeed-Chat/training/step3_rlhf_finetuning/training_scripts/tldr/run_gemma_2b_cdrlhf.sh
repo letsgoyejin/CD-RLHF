@@ -1,6 +1,32 @@
 #!/bin/bash
-OUTPUT=./models/gemma-2b-tldr-cdrlhf
+# conda 환경 활성화
+source /home/soo/miniconda3/etc/profile.d/conda.sh
+conda activate cd_rlhf
+# GPU 설정 (GPU 1번 사용)
+# export CUDA_VISIBLE_DEVICES=1,3
+
+# huggingface-cli 로그인 (토큰 필요)
+
+# current directory 이동
+basepath=/home/soo/yejin/CD-RLHF
+cd $basepath/applications/DeepSpeed-Chat/training/step3_rlhf_finetuning
+
+# dschat 모듈 경로 추가
+export PYTHONPATH=$basepath/applications/DeepSpeed-Chat:$PYTHONPATH
+
+# 메모리 단편화 줄이기
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+# cuda 버전 체크 건너뛰기
+export DS_SKIP_CUDA_CHECK=1
+
+# 모델 저장할 디렉토리 생성
+OUTPUT=$basepath/models/gemma-2b-tldr-cdrlhf
 mkdir -p $OUTPUT
+
+# 기록
+LOG_OUTPUT=$basepath/scripts/logs
+PROJECT_NAME=CD_RLHF
 
 echo $(basename $OUTPUT)
 branch_info=$(git branch | grep '*')
@@ -10,14 +36,14 @@ echo "branch: $branch_info commit id: $commit_info" > $OUTPUT/training.log
 Actor_Lr=8e-6
 Critic_Lr=1e-5
 
-deepspeed --num_gpus 8 main.py \
+deepspeed --master_port 29502 --include localhost:1,3 main.py \
    --data_path openai/summarize_from_feedback \
    --data_split 2,4,4 \
-   --actor_model_name_or_path ./models/gemma-2b-tldr-sft \
-   --critic_model_name_or_path ./models/gemma-2b-tldr-rm \
+   --actor_model_name_or_path $basepath/models/gemma-2b-tldr-sft \
+   --critic_model_name_or_path $basepath/models/gemma-2b-tldr-rm/step_18572 \
    --num_padding_at_beginning 0 \
-   --per_device_generation_batch_size 1 \
-   --per_device_training_batch_size 1 \
+   --per_device_generation_batch_size 2\
+   --per_device_training_batch_size 2 \
    --generation_batches 1 \
    --ppo_epochs 1 \
    --max_answer_seq_len 512 \
@@ -44,6 +70,7 @@ deepspeed --num_gpus 8 main.py \
    --print_answers \
    --print_answers_interval 100 \
    --save_steps 1000 \
-   --enable_tensorboard \
-   --tensorboard_path $OUTPUT/tensorboard \
-    &>> $OUTPUT/training.log
+   --min_new_tokens 4 \
+   --enable_wandb \
+   --project_name $PROJECT_NAME \
+    &> $LOG_OUTPUT/training3.log

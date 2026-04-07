@@ -36,6 +36,9 @@ from logging import getLogger
 logger = getLogger(__name__)
 logging.basicConfig(format='[%(asctime)s] [%(levelname)s] %(message)s', level=logging.INFO)
 
+# wandb utils 추가
+from wandb_utils import init_wandb, log_metrics, finish_wandb
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description=
@@ -207,6 +210,16 @@ def parse_args():
     parser.add_argument('--print_loss',
                         action='store_true',
                         help='Prints loss at each step.')
+    
+    ## WandB logging  
+    parser.add_argument('--enable_wandb',
+                        action='store_true',
+                        help='Enable W&B logging')
+    parser.add_argument('--project_name',
+                        type=str,
+                        default="gemma-sft",
+                        help='Name of the W&B project')
+    
     parser = deepspeed.add_config_arguments(parser)
     args = parser.parse_args()
 
@@ -238,6 +251,13 @@ def main():
         'train_batch_size'] = args.per_device_train_batch_size * torch.distributed.get_world_size(
         ) * args.gradient_accumulation_steps
 
+    # Initialize W&B (only on rank 0)
+    if args.enable_wandb and torch.distributed.get_rank() == 0:
+        my_tags = [
+            args.model_name_or_path.split("/")[-1]
+        ]
+        init_wandb(args, ds_config, project_name=args.project_name, group_name="1-SFT", tags=my_tags)
+    
     # If passed along, set the training seed now.
     set_random_seed(args.seed)
 
@@ -364,6 +384,8 @@ def main():
         args.global_rank)
     # perplexity, eval_loss = evaluation(model, eval_dataloader)
     # print_rank_0(f"ppl: {perplexity}, loss: {eval_loss}", args.global_rank)
+    
+    total_global_steps = 0
     for epoch in range(args.num_train_epochs):
         print_rank_0(
             f"Beginning of Epoch {epoch+1}/{args.num_train_epochs}, Total Micro Batches {len(train_dataloader)}",
@@ -379,11 +401,27 @@ def main():
             model.backward(loss)
             model.step()
             end = time.time()
-            if (step + 1) % args.gradient_accumulation_steps == 0 and torch.distributed.get_rank() == 0:
+            if (step + 1) % args.gradient_accumulation_steps == 0:
+                total_global_steps += 1
+
+                if torch.distributed.get_rank() == 0:
+                    current_epoch = epoch + (step + 1) / len(train_dataloader)
+                
                 # print_throughput(model.model, args, end - start, args.global_rank)
                 logger.info(
                     f"Epoch: {epoch}, Step: {step}, Total Step: {len(train_dataloader)}, Rank: {torch.distributed.get_rank()}, loss = {loss}, lr = {model.get_lr()[0]}"
                 )
+
+                # Log training metrics to W&B
+                if args.enable_wandb and torch.distributed.get_rank() == 0:
+                    log_metrics(
+                        mode="train",
+                        step_type="sft",
+                        total_steps=total_global_steps, # x축은 업데이트 횟수
+                        global_rank=args.global_rank,
+                        metrics={"loss": loss, "lr": model.get_lr()[0]},
+                        epoch= current_epoch
+                    )
 
         # Evaluate perplexity on the validation set.
         print_rank_0(
@@ -391,6 +429,18 @@ def main():
             args.global_rank)
         perplexity, eval_loss = evaluation(model, eval_dataloader)
         print_rank_0(f"ppl: {perplexity}, loss: {eval_loss}", args.global_rank)
+        
+        # Log evaluation metrics to W&B
+        if args.enable_wandb and torch.distributed.get_rank() == 0:
+            log_metrics(
+                mode="eval",
+                step_type="sft",
+                total_steps=total_global_steps, # x축은 업데이트 횟수
+                global_rank=args.global_rank,
+                metrics={"perplexity": perplexity, "loss": eval_loss},
+                epoch= epoch + 1
+            )
+
         model.tput_timer.update_epoch_count()
 
         if args.output_dir is not None:
@@ -420,7 +470,9 @@ def main():
                                   args.global_rank,
                                   args.output_dir,
                                   zero_stage=args.zero_stage)
-
+    
+    # Finish W&B logging
+    finish_wandb(args.global_rank)
 
 if __name__ == "__main__":
     main()

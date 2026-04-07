@@ -1,0 +1,1 @@
+{"eval/margin":0.3191106915473938,"eval/reject_score":0.3074902296066284,"_step":4643,"eval/accuracy":0.6549999713897705,"train/learning_rate":4.414030090833521e-09,"_runtime":8337.62809838,"epoch":1,"_wandb":{"runtime":8337},"train/loss":0.51171875,"_timestamp":1.7753590958843563e+09,"eval/chosen_score":0.6266009211540222}

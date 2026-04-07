@@ -1,0 +1,257 @@
+_wandb:
+    value:
+        cli_version: 0.25.1
+        e:
+            nij9gawlfv1m2o5b2nzkk52wzfdko0yg:
+                args:
+                    - --local_rank=0
+                    - --data_path
+                    - openai/summarize_from_feedback
+                    - --data_split
+                    - 2,4,4
+                    - --model_name_or_path
+                    - /home/soo/yejin/CD-RLHF/models/gemma-2b-tldr-sft/0
+                    - --per_device_train_batch_size
+                    - "2"
+                    - --per_device_eval_batch_size
+                    - "2"
+                    - --max_seq_len
+                    - "1024"
+                    - --learning_rate
+                    - "1e-5"
+                    - --weight_decay
+                    - "0.1"
+                    - --num_padding_at_beginning
+                    - "0"
+                    - --num_train_epochs
+                    - "1"
+                    - --gradient_accumulation_steps
+                    - "4"
+                    - --lr_scheduler_type
+                    - cosine
+                    - --warmup_ratio
+                    - "0.05"
+                    - --seed
+                    - "1234"
+                    - --gradient_checkpointing
+                    - --zero_stage
+                    - "2"
+                    - --deepspeed
+                    - --output_dir
+                    - /home/soo/yejin/CD-RLHF/models/gemma-2b-tldr-rm
+                    - --enable_wandb
+                    - --project_name
+                    - CD_RLHF
+                    - --eval_interval
+                    - "100"
+                codePath: applications/DeepSpeed-Chat/training/step2_reward_model_finetuning/main.py
+                codePathLocal: main.py
+                cpu_count: 192
+                cpu_count_logical: 192
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "15147421802496"
+                        used: "9369020358656"
+                email: a2000yejin@snu.ac.kr
+                executable: /home/soo/miniconda3/envs/cd_rlhf/bin/python3.10
+                git:
+                    commit: 467189a5b437cf31208372821cf8fcb8cf77c095
+                    remote: https://github.com/ernie-research/CD-RLHF.git
+                gpu: NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+                gpu_count: 8
+                gpu_nvidia:
+                    - architecture: Blackwell
+                      cudaCores: 24064
+                      memoryTotal: "102641958912"
+                      name: NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+                      uuid: GPU-7203fcf7-079e-0b87-e7d5-0e147a8bd6ba
+                    - architecture: Blackwell
+                      cudaCores: 24064
+                      memoryTotal: "102641958912"
+                      name: NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+                      uuid: GPU-fb7c18d7-3bc3-030d-94a3-b5ab4d8e2209
+                    - architecture: Blackwell
+                      cudaCores: 24064
+                      memoryTotal: "102641958912"
+                      name: NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+                      uuid: GPU-1b179fd9-cf66-170f-84ba-b3d94d3a220c
+                    - architecture: Blackwell
+                      cudaCores: 24064
+                      memoryTotal: "102641958912"
+                      name: NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+                      uuid: GPU-dc9fc490-e0a2-6493-e810-6ccfc2015bba
+                    - architecture: Blackwell
+                      cudaCores: 24064
+                      memoryTotal: "102641958912"
+                      name: NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+                      uuid: GPU-56b8f91f-dc15-1ac9-e228-230355c34197
+                    - architecture: Blackwell
+                      cudaCores: 24064
+                      memoryTotal: "102641958912"
+                      name: NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+                      uuid: GPU-e1ce4c49-62ff-04f4-1881-02b6b030aaca
+                    - architecture: Blackwell
+                      cudaCores: 24064
+                      memoryTotal: "102641958912"
+                      name: NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+                      uuid: GPU-0e472f99-2575-5b74-f269-3b9c00f9aa93
+                    - architecture: Blackwell
+                      cudaCores: 24064
+                      memoryTotal: "102641958912"
+                      name: NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+                      uuid: GPU-1f7ec963-88c1-5822-674b-681a4e9bb4fc
+                host: vega
+                memory:
+                    total: "811218989056"
+                os: Linux-6.8.0-79-generic-x86_64-with-glibc2.39
+                program: /home/soo/yejin/CD-RLHF/applications/DeepSpeed-Chat/training/step2_reward_model_finetuning/main.py
+                python: CPython 3.10.20
+                root: /home/soo/yejin/CD-RLHF/applications/DeepSpeed-Chat/training/step2_reward_model_finetuning
+                startedAt: "2026-04-04T14:07:57.407087Z"
+                writerId: nij9gawlfv1m2o5b2nzkk52wzfdko0yg
+        m: []
+        python_version: 3.10.20
+        t:
+            "1":
+                - 1
+                - 11
+                - 49
+                - 51
+                - 71
+            "2":
+                - 1
+                - 11
+                - 49
+                - 51
+                - 71
+            "3":
+                - 13
+                - 15
+                - 16
+            "4": 3.10.20
+            "5": 0.25.1
+            "6": 4.41.2
+            "12": 0.25.1
+            "13": linux-x86_64
+compute_fp32_loss:
+    value: false
+data_output_path:
+    value: /tmp/data_files/
+data_path:
+    value:
+        - openai/summarize_from_feedback
+data_split:
+    value: 2,4,4
+deepscale:
+    value: false
+deepscale_config:
+    value: null
+deepspeed:
+    value: true
+deepspeed_config:
+    value: null
+dropout:
+    value: null
+dtype:
+    value: fp16
+enable_tensorboard:
+    value: false
+enable_wandb:
+    value: true
+end_of_conversation_token:
+    value: null
+eval_interval:
+    value: 100
+eval_iters:
+    value: 100
+fp16:
+    value:
+        enabled: true
+        loss_scale_window: 100
+global_rank:
+    value: 0
+gradient_accumulation_steps:
+    value: 4
+gradient_checkpointing:
+    value: true
+gradient_clipping:
+    value: 1
+hybrid_engine:
+    value:
+        enabled: false
+        inference_tp_size: 1
+        max_out_tokens: 512
+        pin_parameters: true
+        release_inference_cache: false
+        tp_gather_partition_size: 8
+learning_rate:
+    value: 1e-05
+local_rank:
+    value: 0
+lora_dim:
+    value: 0
+lora_learning_rate:
+    value: 0.0005
+lora_module_name:
+    value: decoder.layers.
+lr_scheduler_type:
+    value: COSINE
+max_seq_len:
+    value: 1024
+model_name_or_path:
+    value: /home/soo/yejin/CD-RLHF/models/gemma-2b-tldr-sft/0
+num_padding_at_beginning:
+    value: 0
+num_train_epochs:
+    value: 1
+num_warmup_steps:
+    value: 0
+offload:
+    value: false
+only_optimize_lora:
+    value: false
+output_dir:
+    value: /home/soo/yejin/CD-RLHF/models/gemma-2b-tldr-rm
+per_device_eval_batch_size:
+    value: 2
+per_device_train_batch_size:
+    value: 2
+prescale_gradients:
+    value: false
+project_name:
+    value: CD_RLHF
+seed:
+    value: 1234
+steps_per_print:
+    value: 10
+tensorboard:
+    value:
+        enabled: false
+        job_name: step2_model_tensorboard
+        output_path: step2_tensorboard/ds_tensorboard_logs/
+tensorboard_path:
+    value: step2_tensorboard
+train_batch_size:
+    value: 8
+train_micro_batch_size_per_gpu:
+    value: 2
+wall_clock_breakdown:
+    value: false
+warmup_ratio:
+    value: 0.05
+weight_decay:
+    value: 0.1
+zero_optimization:
+    value:
+        memory_efficient_linear: false
+        offload_optimizer:
+            device: none
+        offload_param:
+            device: none
+        stage: 2
+        stage3_max_live_parameters: 3e+07
+        stage3_param_persistence_threshold: 10000
+        stage3_prefetch_bucket_size: 3e+07
+zero_stage:
+    value: 2

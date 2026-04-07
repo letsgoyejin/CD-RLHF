@@ -1,10 +1,28 @@
 #!/bin/bash
-OUTPUT=./models/gemma-2b-tldr-sft
+# conda 환경 활성화
+source /home/soo/miniconda3/etc/profile.d/conda.sh
+conda activate cd_rlhf
+# GPU 설정 (GPU 3번 사용)
+export CUDA_VISIBLE_DEVICES=3
+
+# huggingface-cli 로그인 (토큰 필요)
+
+# current directory 이동
+basepath=/home/soo/yejin/CD-RLHF
+cd $basepath/applications/DeepSpeed-Chat/training/step1_supervised_finetuning
+
+# dschat 모듈 경로 추가
+export PYTHONPATH=$basepath/applications/DeepSpeed-Chat:$PYTHONPATH
+
+# 모델 저장할 디렉토리 생성
+OUTPUT=$basepath/models/gemma-2b-tldr-sft
 mkdir -p $OUTPUT
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+# 기록
+LOG_OUTPUT=$basepath/scripts/logs
+PROJECT_NAME=CD_RLHF
 
-deepspeed main.py \
+deepspeed --master_port 29501 main.py \
    --data_path openai/summarize_from_feedback \
    --data_split 2,4,4 \
    --model_name_or_path google/gemma-2b \
@@ -25,4 +43,9 @@ deepspeed main.py \
    --enable_tensorboard \
    --tensorboard_path $OUTPUT/tensorboard \
    --print_loss \
-   &> $OUTPUT/training.log
+   --enable_wandb \
+   --project_name $PROJECT_NAME \
+   &> $LOG_OUTPUT/training1.log &
+
+echo $! > $LOG_OUTPUT/gemma-2b-tldr-sft.pid
+echo "Training started with PID: $!"

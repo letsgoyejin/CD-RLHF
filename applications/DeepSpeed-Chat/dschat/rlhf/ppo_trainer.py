@@ -87,6 +87,7 @@ class DeepSpeedPPOTrainer():
         self.lam = self.args.lam
         self.generate_time = 0.0
         self.temperature = self.args.temperature
+        self.min_new_tokens = self.args.min_new_tokens
         self.eta = self.args.eta
         self.cdrlhf_topk = self.args.cdrlhf_topk
 
@@ -99,10 +100,13 @@ class DeepSpeedPPOTrainer():
         prompt_length = prompts.shape[1]
         max_min_length = self.max_answer_seq_len + prompt_length
 
+        # 이 값을 출력해서 확인
+        # print(f"rank={self.args.local_rank}, prompt_length={prompt_length}, max_min_length={max_min_length}, model_max_length={self.actor_model.module.config.max_position_embeddings}")
+
         # This has been added due to a probability/nan error that happens after
         # meta-llama/Llama-2-7b-hf enabled do_sample:
         # https://huggingface.co/meta-llama/Llama-2-7b-hf/commit/6fdf2e60f86ff2481f2241aaee459f85b5b0bbb9
-        generation_config = dict(do_sample=True, temperature=self.temperature)
+        generation_config = dict(do_sample=True, temperature=self.temperature, min_new_tokens=self.args.min_new_tokens)
         with torch.no_grad():
             if self.args.enable_zero3_generation_gather and self.z3_enabled:
                 with unwrap_model_for_generation(self.actor_model) as unwrapped_model:
@@ -190,7 +194,11 @@ class DeepSpeedPPOTrainer():
             seq = self.last_generated_experience['seq']
             in_top_k = self.last_generated_experience['in_top_k']
         else:
-            self.last_generated_experience = {'prompts': prompts, 'seq': seq, 'in_top_k': in_top_k}
+            self.last_generated_experience = {
+                'prompts': prompts.detach().clone(), 
+                'seq': seq.detach().clone(), 
+                'in_top_k': in_top_k.detach().clone() if isinstance(in_top_k, torch.Tensor) else in_top_k}
+        
         self.train()
 
         pad_token_id = self.tokenizer.pad_token_id
@@ -216,20 +224,24 @@ class DeepSpeedPPOTrainer():
             self.selfbleu_reward.add_sample(gathered_seqs)
             del gathered_seqs
 
-        hidden_states = output_ref.hidden_states[-1]
+        hidden_states = output_ref.hidden_states[-1].detach()
         logits = output.logits
         logits_ref = output_ref.logits
         if self.compute_fp32_loss:
             logits = logits.to(torch.float)
             logits_ref = logits_ref.to(torch.float)
 
+        # output, output_ref 명시적 해제
+        del output, output_ref  # ✅ 추가
+        torch.cuda.empty_cache()  # ✅ 추가
+
         self.generate_time = generate_end - generate_start
 
         return {
             'prompts': prompts,
-            'logprobs': gather_log_probs(logits[:, :-1, :], seq[:, 1:]),
+            'logprobs': gather_log_probs(logits[:, :-1, :], seq[:, 1:]).detach(),
             'ref_logprobs': gather_log_probs(logits_ref[:, :-1, :], seq[:,
-                                                                        1:]),
+                                                                        1:]).detach(),
             'value': values,
             'rewards': reward_score,
             'bleu_rewards': bleu_score,

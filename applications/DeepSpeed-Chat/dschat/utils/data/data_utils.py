@@ -381,7 +381,7 @@ def create_prompt_dataset(local_rank,
         torch.save(train_dataset, train_fname)
         torch.save(eval_dataset, eval_fname)
     torch.distributed.barrier()
-    return torch.load(train_fname), torch.load(eval_fname)
+    return torch.load(train_fname, weights_only=False), torch.load(eval_fname, weights_only=False)
 
 
 class DataCollatorReward:
@@ -509,7 +509,7 @@ class MiniDataset:
                         [x[i:i + self.small_batch_size] for x in large_batch])
                 elif type(large_batch) == dict:
                     small_dataset.append({
-                        k: v[i:i + self.small_batch_size]
+                        k: v[i:i + self.small_batch_size].clone()
                         for k, v in large_batch.items()
                     })
                 else:

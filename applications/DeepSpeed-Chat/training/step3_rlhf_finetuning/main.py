@@ -44,6 +44,9 @@ from deepspeed.accelerator import get_accelerator
 
 from tqdm import tqdm
 
+# wandb utils 추가
+from wandb_utils import init_wandb, log_metrics_wandb, finish_wandb
+
 writer = None
 
 def parse_args():
@@ -362,6 +365,16 @@ def parse_args():
     parser.add_argument('--tensorboard_path',
                         type=str,
                         default="step3_tensorboard")
+    
+    ## WandB logging
+    parser.add_argument('--enable_wandb',
+                        action='store_true',
+                        help='Enable W&B logging')  
+    parser.add_argument('--project_name',
+                        type=str,
+                        default="gemma-sft",
+                        help='Name of the W&B project')
+    
     ## Tokenizer
     parser.add_argument(
         "--add_eot_token",
@@ -422,6 +435,10 @@ def parse_args():
         type=float,
         default=0.8)
     parser.add_argument(
+        "--min_new_tokens",
+        type=int,
+        default=1)
+    parser.add_argument(
         "--enable_zero3_generation_gather",
         action='store_true',
         help='Enable gather for params in Zero stage 3 before generation.')
@@ -444,7 +461,7 @@ def parse_args():
         "--cdrlhf_topk",
         type=int,
         default=1)
-
+    
     parser = deepspeed.add_config_arguments(parser)
     args = parser.parse_args()
 
@@ -623,6 +640,13 @@ def main():
     # first number is how many experience-batch to generate, second number is the training batch size, which is the micro-batch size used
     exp_mini_dataset = MiniDataset(args.generation_batches,
                                    args.per_device_training_batch_size)
+    
+    # Initialize W&B (only on rank 0)
+    if args.enable_wandb and torch.distributed.get_rank() == 0:
+        my_tags = [
+            args.actor_model_name_or_path.split("/")[-1]
+        ]
+        init_wandb(args, None, project_name=args.project_name, group_name="3-CD_RLHF", tags=my_tags)
 
     # Train!
     print_rank_0(
@@ -702,7 +726,7 @@ def main():
                                        args.global_rank)
 
                 for k in log_metrics:
-                    log_metrics[k] = get_all_reduce_mean(log_metrics[k]).item()
+                    log_metrics[k] = get_all_reduce_mean(log_metrics[k]).item() # GPU 간 평균 계산
                 
                 step_average_reward += log_metrics['reward'] / args.gradient_accumulation_steps_actor
                 if (step + 1) % args.gradient_accumulation_steps_actor == 0:
@@ -733,6 +757,30 @@ def main():
                         writer.add_scalar(k, log_metrics[k] / inner_iter,
                                           global_step=all_micro_step)
                     writer.flush()
+
+                if args.enable_wandb and torch.distributed.get_rank() == 0:
+                    log_metrics_wandb(
+                        mode="train",
+                        step_type="cd_rlhf",
+                        total_steps=all_micro_step,
+                        global_rank=args.global_rank,
+                        metrics={
+                            'actor_loss': actor_loss_sum / inner_iter,
+                            'critic_loss': critic_loss_sum / inner_iter,
+                            'icm_loss': icm_loss_sum / inner_iter,
+                            'ema_reward_score': ema_reward_score.get(),
+                            **{k: log_metrics[k] / inner_iter for k in log_metrics}
+                        },
+                        epoch=epoch+1
+                    )
+
+                # 메모리 비우기
+                del exp_dataset
+                exp_dataset = None
+            
+            # 메모리 비우기
+            del out
+            torch.cuda.empty_cache()
 
             if args.actor_gradient_checkpointing:
                 rlhf_engine.actor.gradient_checkpointing_disable()

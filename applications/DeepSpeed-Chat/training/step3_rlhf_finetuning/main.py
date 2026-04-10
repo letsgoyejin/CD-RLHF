@@ -626,7 +626,7 @@ def main():
         tokenizer=tokenizer,
         num_total_iters=num_total_iters,
         args=args)
-
+    
     # Mixed Precision ZeRO++
     if args.enable_mixed_precision_lora:
         assert args.actor_lora_dim > 0, "Mixed Precision LoRA requires LoRA to be enabled"
@@ -673,6 +673,10 @@ def main():
 
             exp_dataset = exp_mini_dataset.add(out)
 
+            # 메모리 정리
+            del out
+            torch.cuda.empty_cache()
+
             if exp_dataset is not None:
                 inner_iter = 0
                 actor_loss_sum, critic_loss_sum = 0, 0
@@ -700,9 +704,9 @@ def main():
                 for ppo_ep in range(args.ppo_epochs):
                     for i, exp_data in enumerate(exp_dataset):
                         losses = trainer.train_rlhf(exp_data)
-                        actor_loss_sum += losses["actor_loss"].item()
-                        critic_loss_sum += losses["critic_loss"].item()
-                        icm_loss_sum += losses["icm_loss"].item()
+                        actor_loss_sum += losses["actor_loss"]
+                        critic_loss_sum += losses["critic_loss"]
+                        icm_loss_sum += losses["icm_loss"]
                         for k in log_metrics:
                             log_metrics[k] += losses[k]
 
@@ -711,8 +715,15 @@ def main():
                             moving_average(rlhf_engine.actor,
                                            rlhf_engine.actor_ema,
                                            zero_stage=args.actor_zero_stage)
+                            
+                        # 메모리 정리
+                        del losses
 
                     random.shuffle(exp_dataset)
+
+                # 메모리 정리
+                del exp_dataset
+                torch.cuda.empty_cache()
 
                 end = time.time()
                 training_time = end - training_start
@@ -726,8 +737,12 @@ def main():
                                        args.global_rank)
 
                 for k in log_metrics:
-                    log_metrics[k] = get_all_reduce_mean(log_metrics[k]).item() # GPU 간 평균 계산
+                    val = torch.tensor(log_metrics[k]).cuda()
+                    log_metrics[k] = get_all_reduce_mean(val).item() # GPU 간 평균 계산
                 
+                # 메모리 정리
+                torch.cuda.empty_cache()
+
                 step_average_reward += log_metrics['reward'] / args.gradient_accumulation_steps_actor
                 if (step + 1) % args.gradient_accumulation_steps_actor == 0:
                     ema_reward_score.update(step_average_reward)
@@ -774,14 +789,6 @@ def main():
                         epoch=epoch+1
                     )
 
-                # 메모리 비우기
-                del exp_dataset
-                exp_dataset = None
-            
-            # 메모리 비우기
-            del out
-            torch.cuda.empty_cache()
-
             if args.actor_gradient_checkpointing:
                 rlhf_engine.actor.gradient_checkpointing_disable()
 
@@ -800,6 +807,9 @@ def main():
 
             if args.enable_test_mode and non_overflow_step_count == args.test_stop_step:
                 break
+
+            # 메모리 정리
+            torch.cuda.empty_cache()
 
         if args.enable_test_mode:
             break

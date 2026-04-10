@@ -108,8 +108,8 @@ def main():
     return_dict = manager.dict()
     processes = []
 
-    for rank in gpus:
-        p = mp.Process(target=process_data, args=(rank, *chunks[rank], args, return_dict))
+    for i, rank in enumerate(gpus):
+        p = mp.Process(target=process_data, args=(rank, *chunks[i], args, return_dict))
         p.start()
         processes.append(p)
 
@@ -120,6 +120,12 @@ def main():
     all_inferences = []
     for rank in gpus:
         all_inferences.extend(return_dict[rank])
+
+    
+    # reward 평균
+    rewards = [inf["reward"] for inf in all_inferences]
+    avg_reward = sum(rewards) / len(rewards)
+    print(f"Average Reward: {avg_reward:.4f}", flush=True)
 
     # Save to file
     dataset_name = args.dataset_path.split('/')[-1]

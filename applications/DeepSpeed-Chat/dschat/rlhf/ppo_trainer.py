@@ -146,6 +146,10 @@ class DeepSpeedPPOTrainer():
         _, top_indices = torch.topk(probs, self.cdrlhf_topk, dim=-1)
         in_top_k = ~((ans.unsqueeze(-1) == top_indices).any(dim=-1))
 
+        # Explicitly delete large tensors to free memory
+        del logits, probs
+        torch.cuda.empty_cache()
+
         if self.args.print_answers and (step % self.args.print_answers_interval
                                         == 0):
             print(
@@ -355,22 +359,22 @@ class DeepSpeedPPOTrainer():
         self.ICM.step()
 
         return {
-            'actor_loss': actor_loss,
-            'critic_loss': critic_loss,
-            'icm_loss': icm_loss,
-            'kl': kl_divergence.norm(p=2, dim=-1).mean(),
-            'reward': reward_score.mean(),
-            'bleu_reward':inputs.get("bleu_rewards", 0).mean(),
+            'actor_loss': actor_loss.item(),
+            'critic_loss': critic_loss.item(),
+            'icm_loss': icm_loss.item(),
+            'kl': kl_divergence.norm(p=2, dim=-1).mean().item(),
+            'reward': reward_score.mean().item(),
+            'bleu_reward': inputs.get("bleu_rewards", 0).mean().item(),
             'resp_length': resp_length,
-            'intrinsic_rewards': intrinsic_reward.norm(p=2, dim=-1).mean(),
-            'entropy': -log_probs.sum(-1).mean(),
-            'advantages_mean': advantages.mean(),
-            'advantages_std': advantages.std(),
-            'advantages_norm': advantages.norm(p=2, dim=-1).mean(),
-            'returns_mean': returns.mean(),
-            'returns_std': returns.std(),
-            'returns_norm': returns.norm(p=2, dim=-1).mean(),
-            'intrinsic_number': intrinsic_mask.int().sum()
+            'intrinsic_rewards': intrinsic_reward.norm(p=2, dim=-1).mean().item(),
+            'entropy': -log_probs.sum(-1).mean().item(),
+            'advantages_mean': advantages.mean().item(),
+            'advantages_std': advantages.std().item(),
+            'advantages_norm': advantages.norm(p=2, dim=-1).mean().item(),
+            'returns_mean': returns.mean().item(),
+            'returns_std': returns.std().item(),
+            'returns_norm': returns.norm(p=2, dim=-1).mean().item(),
+            'intrinsic_number': intrinsic_mask.int().sum().item()
         }
 
     def get_overflow(self):

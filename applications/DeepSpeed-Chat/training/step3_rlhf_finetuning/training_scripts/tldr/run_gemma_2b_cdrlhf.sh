@@ -1,9 +1,10 @@
 #!/bin/bash
 # conda 환경 활성화
 source /home/soo/miniconda3/etc/profile.d/conda.sh
-conda activate cd_rlhf
-# GPU 설정 (GPU 1번 사용)
-# export CUDA_VISIBLE_DEVICES=1,3
+conda activate cd_rlhf2
+# GPU 설정 (GPU 2,3번 사용)
+GPU_ID=2,3
+export CUDA_VISIBLE_DEVICES=$GPU_ID
 
 # huggingface-cli 로그인 (토큰 필요)
 
@@ -36,14 +37,28 @@ echo "branch: $branch_info commit id: $commit_info" > $OUTPUT/training.log
 Actor_Lr=8e-6
 Critic_Lr=1e-5
 
-deepspeed --master_port 29502 --include localhost:1,3 main.py \
+# 메모리 모니터링 시작 (백그라운드)
+> "$LOG_OUTPUT/memory_log.txt"
+while true; do
+    echo "=== $(date) ===" >> $LOG_OUTPUT/memory_log.txt
+    nvidia-smi -i $GPU_ID --query-gpu=index,memory.used,memory.free,memory.total --format=csv,noheader >> $LOG_OUTPUT/memory_log.txt
+    free -h >> $LOG_OUTPUT/memory_log.txt
+    sleep 10
+done &
+MONITOR_PID=$!
+
+# 스크립트 종료 시 (정상/비정상 모두) 모니터링 종료
+trap "kill $MONITOR_PID 2>/dev/null" EXIT
+
+deepspeed --master_port 29502 --include localhost:$GPU_ID main.py \
    --data_path openai/summarize_from_feedback \
    --data_split 2,4,4 \
    --actor_model_name_or_path $basepath/models/gemma-2b-tldr-sft \
    --critic_model_name_or_path $basepath/models/gemma-2b-tldr-rm/step_18572 \
+   --dtype bf16 \
    --num_padding_at_beginning 0 \
-   --per_device_generation_batch_size 2\
-   --per_device_training_batch_size 2 \
+   --per_device_generation_batch_size 1 \
+   --per_device_training_batch_size 1 \
    --generation_batches 1 \
    --ppo_epochs 1 \
    --max_answer_seq_len 512 \
@@ -65,7 +80,7 @@ deepspeed --master_port 29502 --include localhost:1,3 main.py \
    --icm_learning_rate 1e-5 \
    --eta 0.04 \
    --cdrlhf_topk 1 \
-   --sample_size 1000 \
+   --sample_size 100 \
    --kl_ctl 0.05 \
    --print_answers \
    --print_answers_interval 100 \
